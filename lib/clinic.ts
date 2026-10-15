@@ -5,10 +5,8 @@
  */
 export const CLINIC = {
   name: "Vellura Dental",
-  timeZone:
-    process.env.CLINIC_TIMEZONE ||
-    Intl.DateTimeFormat().resolvedOptions().timeZone ||
-    "UTC",
+  // Fixed rather than taken from the server: hosts such as Vercel run in UTC, which shifts every time shown.
+  timeZone: process.env.CLINIC_TIMEZONE || "Asia/Karachi",
   openHour: 9,
   closeHour: 18,
   slotMinutes: 30,
