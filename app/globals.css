@@ -1,26 +1,95 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Vellura Dental theme.
+ * Tailwind v4 is configured in CSS (there is no tailwind.config.ts): brand tokens live
+ * in :root and are exposed to utilities through @theme below.
+ */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Brand palette */
+  --color-vellura-white: #ffffff;
+  --color-vellura-mist: #f8fafc;
+  --color-vellura-sky: #38bdf8;
+  --color-vellura-cyan: #0891b2;
+  --color-vellura-deep: #0284c7;
+  --color-vellura-ink: #0c3a4a;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --shadow-soft: 0 1px 2px rgb(12 58 74 / 0.04), 0 12px 32px -12px rgb(8 145 178 / 0.18);
+  --shadow-float: 0 2px 6px rgb(12 58 74 / 0.06), 0 28px 60px -20px rgb(8 145 178 / 0.35);
+
+  --tracking-luxe: 0.28em;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --background: #ffffff;
+  --foreground: #0c3a4a;
+  --card: #ffffff;
+  --card-foreground: #0c3a4a;
+  --popover: #ffffff;
+  --popover-foreground: #0c3a4a;
+  --primary: #0891b2;
+  --primary-foreground: #ffffff;
+  --secondary: #f8fafc;
+  --secondary-foreground: #0e7490;
+  --muted: #f8fafc;
+  --muted-foreground: #5b7482;
+  --accent: #e0f2fe;
+  --accent-foreground: #0369a1;
+  --destructive: #e11d48;
+  --border: #e6eef3;
+  --input: #dbe7ee;
+  --ring: #38bdf8;
+  --radius: 0.875rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans scroll-smooth;
+  }
+  body {
+    @apply bg-background text-foreground tracking-[0.01em];
+  }
+  ::selection {
+    background: #bae6fd;
+    color: #0c3a4a;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility eyebrow {
+  @apply text-[0.7rem] font-semibold uppercase tracking-luxe text-vellura-cyan;
 }
