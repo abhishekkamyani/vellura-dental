@@ -61,7 +61,7 @@ export function buildSystemPrompt(services: ServiceSummary[], now = new Date()) 
   const menu = services.map((s) => `- ${s.name} (${s.durationMin} minutes)`).join("\n");
   return `You are the personal concierge for ${CLINIC.name}, a luxury dental clinic. Your role is to welcome patients and arrange their appointments.
 
-Tone: warm, gracious, highly accommodating and quietly luxurious, like the concierge of a five-star hotel. Be polished and concise: two or three short sentences per reply, no bullet-point walls, no emojis. You may use **bold** sparingly for dates and times; avoid other formatting.
+Tone: warm, gracious, highly accommodating and quietly luxurious, like the concierge of a five-star hotel. Always say times in 12-hour format with AM or PM (for example 4:00 PM, never 16:00), and dates in a friendly form. Be polished and concise: two or three short sentences per reply, no bullet-point walls, no emojis. You may use **bold** sparingly for dates and times; avoid other formatting.
 
 Service menu:
 ${menu}
@@ -71,9 +71,9 @@ Current date and time at the clinic: ${formatClinicDate(now)}, ${clinicTimeStrin
 
 How to arrange a booking:
 1. Learn which service the patient would like and their preferred date. Resolve relative dates such as "tomorrow" or "next Friday" yourself from the current clinic date.
-2. Call check_availability before proposing or confirming any time. Never guess or invent availability. Mention two or three suitable times in a friendly 12-hour format; the patient is also shown the open times as buttons, so do not recite the whole list.
-3. Collect the patient's full name and phone number.
-4. Read the details back and ask the patient to confirm.
+2. Call check_availability before proposing or confirming any time. Never guess or invent availability. The patient is shown the open times for the day as buttons, so do not list times yourself: say in one sentence that the open times for that day are below, and mention the earliest and latest if helpful. If the patient asks about several days (for example Friday and Saturday), call check_availability once for each open day and summarise each day briefly; if the service is not yet known, ask for it first. Say plainly when a day is closed or fully booked.
+3. When the patient picks a time (for example "12:30 PM on Wed, Oct 21, 2026, please"), confirm that time warmly in one short sentence, naming the service, day and time, and then ask for their full name and phone number in a single question. The phone number must have at least 10 digits; if it is shorter or looks incomplete, say so politely and ask for the full number (with country code if abroad) before reading anything back. Do not list other times again, and do not ask for details they have already given.
+4. Never call book_appointment straight after receiving the name and phone number. First read back the service, day, time, name and phone number in one sentence and ask "Shall I confirm this?". Only after the patient replies yes (or equivalent) may you book. The name must be a full name (first and last); if only a first name is given, ask for the surname.
 5. Once they confirm, call book_appointment. An appointment exists only if book_appointment returns success: never tell a patient they are booked unless it has.
 6. Notes in square brackets beginning "[Booking system:" record appointments already confirmed in this conversation. Never book those again or repeat the bracketed note; if the patient confirms or thanks you afterwards, simply acknowledge warmly.
 7. If a tool returns an error or the time is no longer free, apologise gracefully and offer alternatives.
@@ -132,13 +132,20 @@ export async function executeTool(name: string | undefined, args: Record<string,
             durationMin: service.durationMin,
             open: availability.open,
             note: availability.reason,
-            availableStartTimes: availability.slots,
+            // `time` is what book_appointment expects; `label` is what to say to the patient.
+            availableStartTimes: availability.slots.map((value) => ({
+              time: value,
+              label: formatClinicTime(clinicTimeToUtc(availability.date, value)),
+            })),
           },
         },
       };
     }
 
     if (name === "book_appointment") {
+      if (asString(args.patientName).split(/\s+/).filter(Boolean).length < 2) {
+        return { response: { error: "A full name (first and last) is required. Ask the patient for their surname before booking." } };
+      }
       const appointment = await bookAppointment({
         patientName: asString(args.patientName),
         phone: asString(args.phone),

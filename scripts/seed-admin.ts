@@ -1,7 +1,13 @@
 import "dotenv/config";
+import dns from "node:dns";
+import net from "node:net";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
 import { PrismaClient } from "../app/generated/prisma/client";
+
+// No working IPv6 route here; avoid hanging on Neon's IPv6 addresses (see lib/prisma.ts).
+dns.setDefaultResultOrder("ipv4first");
+net.setDefaultAutoSelectFamily(false);
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),

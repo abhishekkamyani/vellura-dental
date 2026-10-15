@@ -8,6 +8,7 @@ import {
   type SlotSuggestions,
 } from "@/lib/concierge";
 import { generateWithRetry, isOverloaded } from "@/lib/gemini";
+import { generateWithGroq } from "@/lib/groq";
 import { prisma } from "@/lib/prisma";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -22,6 +23,15 @@ export type ChatEvent =
 const MAX_MESSAGES = 30;
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_TOOL_ROUNDS = 6;
+
+// The service list rarely changes; avoid a database round trip on every message.
+let servicesCache: { at: number; value: Awaited<ReturnType<typeof prisma.service.findMany>> } | null = null;
+async function getServices() {
+  if (servicesCache && Date.now() - servicesCache.at < 60_000) return servicesCache.value;
+  const value = await prisma.service.findMany({ orderBy: { name: "asc" } });
+  servicesCache = { at: Date.now(), value };
+  return value;
+}
 
 function parseMessages(body: unknown): ChatMessage[] | null {
   const raw = (body as { messages?: unknown })?.messages;
@@ -40,9 +50,10 @@ function parseMessages(body: unknown): ChatMessage[] | null {
 
 export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  const groqApiKey = process.env.GROQ_API_KEY;
+  if (!apiKey && !groqApiKey) {
     return Response.json(
-      { error: "The concierge is not configured yet. Add GEMINI_API_KEY to your .env file and restart the server." },
+      { error: "The concierge is not configured yet. Add GEMINI_API_KEY or GROQ_API_KEY to your .env file and restart the server." },
       { status: 503 },
     );
   }
@@ -73,8 +84,10 @@ export async function POST(request: Request) {
       let slots: SlotSuggestions | null = null;
 
       try {
-        const services = await prisma.service.findMany({ orderBy: { name: "asc" } });
-        const ai = new GoogleGenAI({ apiKey });
+        const started = Date.now();
+        const services = await getServices();
+        console.log(`chat: services loaded in ${Date.now() - started}ms`);
+        const ai = apiKey ? new GoogleGenAI({ apiKey, httpOptions: { timeout: 8_000 } }) : null;
         const config = {
           systemInstruction: buildSystemPrompt(services),
           tools: [{ functionDeclarations }],
@@ -84,9 +97,26 @@ export async function POST(request: Request) {
           role: m.role === "assistant" ? "model" : "user",
           parts: [{ text: m.content }],
         }));
+        // Groq answers fastest and most reliably, so it goes first; Gemini is the backup.
+        // Tapping a time button sends "<time> on <date>, please"; the picker must not reappear after that.
+        const pickedTime = /^\d{1,2}:\d{2} [AP]M on .+, please$/i.test(messages[messages.length - 1].content.trim());
+        let useGroq = Boolean(groqApiKey);
+        const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-          const response = await generateWithRetry(ai, { contents, config }, models);
+          let response;
+          if (useGroq) {
+            try {
+              response = await generateWithGroq(groqApiKey!, groqModel, config.systemInstruction, contents);
+            } catch (error) {
+              if (!ai) throw error;
+              console.warn("Groq is unavailable; continuing the request with Gemini.", error);
+              useGroq = false;
+              response = await generateWithRetry(ai, { contents, config }, models);
+            }
+          } else {
+            response = await generateWithRetry(ai!, { contents, config }, models);
+          }
 
           const calls = response.functionCalls ?? [];
           if (calls.length === 0) {
@@ -94,8 +124,8 @@ export async function POST(request: Request) {
               type: "reply",
               reply: response.text?.trim() || "My apologies, I did not quite catch that. Could you say it once more?",
               booking,
-              // Once a booking is made there is nothing left to choose.
-              slots: booking ? null : slots,
+              // Nothing left to choose once a booking is made or the patient has tapped a time.
+              slots: booking || pickedTime ? null : slots,
             });
             return;
           }
@@ -119,7 +149,7 @@ export async function POST(request: Request) {
           type: "reply",
           reply: "My apologies, that took longer than expected. Could you kindly repeat your request?",
           booking,
-          slots: booking ? null : slots,
+          slots: booking || pickedTime ? null : slots,
         });
       } catch (error) {
         console.error("Chat route failed", error);

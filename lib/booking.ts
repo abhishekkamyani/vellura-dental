@@ -110,6 +110,13 @@ export async function checkAvailability(date: string, durationMin: number): Prom
   };
 }
 
+/** Accepts 10-15 digits with only spaces, dashes, dots, brackets and an optional leading "+"; rejects repeated-digit filler. */
+export function isValidPhone(phone: string) {
+  if (!/^\+?[\d\s().-]+$/.test(phone)) return false;
+  const digits = phone.replace(/\D/g, "");
+  return digits.length >= 10 && digits.length <= 15 && !/^(\d)\1+$/.test(digits);
+}
+
 /**
  * Books an appointment, rejecting any time that overlaps an existing active appointment.
  * Overlap is enforced twice: by a locked check inside the transaction, and by a
@@ -121,9 +128,11 @@ export async function bookAppointment(details: BookingDetails) {
   if (!patientName || patientName.length < 2) {
     throw new BookingError("INVALID_INPUT", "A patient name is required.");
   }
-  const digits = (phone ?? "").replace(/\D/g, "");
-  if (digits.length < 7 || digits.length > 15) {
-    throw new BookingError("INVALID_INPUT", "A valid phone number is required.");
+  if (!isValidPhone(phone ?? "")) {
+    throw new BookingError(
+      "INVALID_INPUT",
+      "That phone number does not look valid. Ask the patient for a valid contact number, including the country code if abroad.",
+    );
   }
   if (!isValidDateString(details.date) || !isValidTimeString(details.time)) {
     throw new BookingError("INVALID_INPUT", "Date must be YYYY-MM-DD and time must be HH:mm (24-hour).");
